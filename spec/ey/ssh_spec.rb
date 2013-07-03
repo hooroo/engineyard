@@ -26,7 +26,9 @@ shared_examples_for "running ey ssh for select role" do
   def command_to_run(opts)
     cmd = ["ssh", opts[:ssh_command]].compact + (@ssh_flag || [])
     cmd << "--environment" << opts[:environment] if opts[:environment]
-    cmd << "--quiet" if opts[:quiet]
+    cmd << "--shell"       << opts[:shell]       if opts[:shell]
+    cmd << "--no-shell"                          if opts[:no_shell]
+    cmd << "--quiet"                             if opts[:quiet]
     cmd
   end
 
@@ -48,6 +50,25 @@ shared_examples_for "running ey ssh for select role" do
     ey command_to_run(:ssh_command => "ls", :environment => 'giblets', :quiet => true)
     @out.should =~ /ssh.*ls/
     @out.should_not =~ /Loading application data/
+  end
+
+  it "runs in bash by default" do
+    login_scenario "one app, one environment"
+    ey command_to_run(:ssh_command => "ls", :environment => 'giblets')
+    @out.should =~ /ssh.*bash -lc ls/
+  end
+
+  it "excludes shell with --no-shell" do
+    login_scenario "one app, one environment"
+    ey command_to_run(:ssh_command => "ls", :environment => 'giblets', :no_shell => true)
+    @out.should_not =~ /bash/
+    @out.should =~ /ssh.*ls/
+  end
+
+  it "accepts an alternate shell" do
+    login_scenario "one app, one environment"
+    ey command_to_run(:ssh_command => "ls", :environment => 'giblets', :shell => 'zsh')
+    @out.should =~ /ssh.*zsh -lc ls/
   end
 
   it "raises an error when there are no matching hosts" do
@@ -108,12 +129,14 @@ describe "ey ssh with a command" do
     cmd = %w[ssh ls]
     cmd << "--environment" << opts[:environment] if opts[:environment]
     cmd << "--account"     << opts[:account]     if opts[:account]
+    cmd << "--shell"       << opts[:shell]       if opts[:shell]
+    cmd << "--no-shell"                          if opts[:no_shell]
     cmd
   end
 
   def verify_ran(scenario)
     ssh_target = scenario[:ssh_username] + '@' + scenario[:master_hostname]
-    @raw_ssh_commands.should == ["ssh #{ssh_target} ls"]
+    @raw_ssh_commands.should == ["ssh #{ssh_target} 'bash -lc ls'"]
   end
 
   include_examples "it takes an environment name and an account name"
@@ -131,6 +154,8 @@ describe "ey ssh with a command that fails" do
     cmd = %w[ssh ls]
     cmd << "--environment" << opts[:environment] if opts[:environment]
     cmd << "--account"     << opts[:account]     if opts[:account]
+    cmd << "--shell"       << opts[:shell]       if opts[:shell]
+    cmd << "--no-shell"                          if opts[:no_shell]
     cmd
   end
 
@@ -147,12 +172,14 @@ describe "ey ssh with a multi-part command" do
     cmd = ['ssh', 'echo "echo"']
     cmd << "--environment" << opts[:environment] if opts[:environment]
     cmd << "--account"     << opts[:account]     if opts[:account]
+    cmd << "--shell"       << opts[:shell]       if opts[:shell]
+    cmd << "--no-shell"                          if opts[:no_shell]
     cmd
   end
 
   def verify_ran(scenario)
     ssh_target = scenario[:ssh_username] + '@' + scenario[:master_hostname]
-    @raw_ssh_commands.should == ["ssh #{ssh_target} 'echo \"echo\"'"]
+    @raw_ssh_commands.should == ["ssh #{ssh_target} 'bash -lc '\\''echo \"echo\"'\\'"]
   end
 
   include_examples "it takes an environment name and an account name"
